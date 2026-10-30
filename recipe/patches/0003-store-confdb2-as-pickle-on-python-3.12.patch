@@ -1,0 +1,62 @@
+diff -ru a/GaudiConfiguration/python/GaudiConfig2/_db.py b/GaudiConfiguration/python/GaudiConfig2/_db.py
+--- a/GaudiConfiguration/python/GaudiConfig2/_db.py	2026-10-30 09:55:26.871408165 +0900
++++ b/GaudiConfiguration/python/GaudiConfig2/_db.py	2026-10-30 09:55:26.899407248 +0900
+@@ -14,6 +14,20 @@
+ import sys
+ 
+ 
++def _open_db(path):
++    """Open a .confdb2 file: a pickled dict (written by merge_confdb2_parts
++    on Python < 3.13) or a shelve database."""
++    import pickle
++    import shelve
++
++    with open(path, "rb") as f:
++        is_pickle = f.read(1) == b"\x80"
++    if is_pickle:
++        with open(path, "rb") as f:
++            return pickle.load(f)
++    return shelve.open(path, "r")
++
++
+ class ConfDB2(object):
+     def __init__(self):
+         import shelve
+@@ -41,7 +55,7 @@
+                 if f.absolute().as_posix() not in ignored_files
+             ]
+             dbfiles.sort()
+-            for db in [shelve.open(f, "r") for f in dbfiles]:
++            for db in [_open_db(f) for f in dbfiles]:
+                 for key in db:
+                     self._dbs.setdefault(key, db)
+ 
+diff -ru a/GaudiKernel/scripts/merge_confdb2_parts b/GaudiKernel/scripts/merge_confdb2_parts
+--- a/GaudiKernel/scripts/merge_confdb2_parts	2026-10-30 09:55:26.871408165 +0900
++++ b/GaudiKernel/scripts/merge_confdb2_parts	2026-10-30 09:55:26.899407248 +0900
+@@ -73,10 +73,23 @@
+             os.remove(output)
+         if sys.platform.startswith("darwin") and os.path.exists(output + ".db"):
+             os.remove(output + ".db")
+-        with shelve.open(output, "c") as out:
++        if sys.version_info < (3, 13):
++            # Python < 3.13 without dbm.gnu falls back to dbm.dumb, which
++            # writes <output>.dir/.dat/.bak instead of <output>: store a
++            # pickled dict in <output> instead (read by GaudiConfig2._db).
++            import pickle
++
++            data = {}
+             for input in inputs:
+                 logging.debug("adding %r", input)
+-                out.update(eval(open(input, "rb").read()))
++                data.update(eval(open(input, "rb").read()))
++            with open(output, "wb") as out:
++                pickle.dump(data, out, protocol=pickle.HIGHEST_PROTOCOL)
++        else:
++            with shelve.open(output, "c") as out:
++                for input in inputs:
++                    logging.debug("adding %r", input)
++                    out.update(eval(open(input, "rb").read()))
+         if sys.platform.startswith("darwin"):
+             if os.path.exists(output):  # this Python uses dbm.gnu
+                 open(output + ".db", "w").close()  # make a dummy ".db" version

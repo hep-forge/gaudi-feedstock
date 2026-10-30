@@ -1,10 +1,12 @@
 {% set versions = {
-    "0.0.0": "REPLACE_WITH_SHA256"
+    "40.6": "674b7f4063f6cb4678e92ffad8e11bd5c25523efc42eb4b66b20c539ed6844dc"
 } %}
 
 {% set version = environ.get('COMMIT_VERSION', None) %}
 {% set version = version or versions.keys()|first %}
 {% set version = version|string %}
+{% set tag = "v" ~ version|replace(".", "r") %}
+{% set root_tag = (root or '')|replace('.', '') %}
 
 {% set name = environ.get('ANACONDA_PACKAGE', 'gaudi')|string|lower %}
 
@@ -13,13 +15,25 @@ package:
   version: {{ environ.get('ANACONDA_VERSION', version)|replace("-", ".") }}
 
 source:
-  url: "https://gitlab.cern.ch/gaudi/Gaudi/archive/refs/tags/{{ version }}.tar.gz"   # TODO: confirm upstream's actual tag/tarball naming
+  url: "https://gitlab.cern.ch/gaudi/Gaudi/-/archive/{{ tag }}/Gaudi-{{ tag }}.tar.gz"
   {% if versions.get(version, None) %}
   sha256: {{ versions.get(version) }}
   {% endif %}
+  patches:
+    # From conda-forge's gaudi recipe: find plugins in $PREFIX/lib with no
+    # GAUDI_PLUGIN_PATH set, and pytest 9 support.
+    - patches/0001-fix-scan-default-plugin-path-in-Registry-initialize.patch
+    - patches/0002-fix-drop-removed-startdir-arg-from-pytest_report_hea.patch
+    # hep-forge ROOT is built for Python 3.12, where shelve writes three
+    # files per database; keep each .confdb2 a single file.
+    - patches/0003-store-confdb2-as-pickle-on-python-3.12.patch
 
 build:
   number: 0
+  string: "root{{ root_tag }}"
+  skip: true  # [not linux]
+  ignore_prefix_files:
+    - lib/*.pcm
   run_exports:
     - {{ pin_subpackage(name, max_pin="x.x.x") }}
 
@@ -29,20 +43,57 @@ requirements:
     - {{ compiler('cxx') }}
     - {{ stdlib('c') }}
     - cmake
-    - make
+    - ninja
+    - pkg-config
+    - git
+    - procps-ng
   host:
-    # TODO: library dependencies
+    - python
+    - pytest
+    - pytest-cov
+    - coverage
+    - pyyaml
+    - networkx
+    - libboost-devel
+    - libboost-python-devel
+    - root {{ root }}.*
+    - root-guard
+    - tbb-devel
+    - zlib
+    - zstd
+    - libuuid
+    - range-v3
+    - nlohmann_json
+    - fmt
+    - clhep
+    - xerces-c
+    - catch2
+    - ms-gsl
+    - aida
+    - heppdt
   run:
-    # TODO: runtime dependencies
+    - python
+    - root {{ root }}.*
+    - root-guard
 
 test:
+  imports:
+    - GaudiKernel
   commands:
-    - echo "TODO: a real smoke test"
+    - Gaudi --help
+    - gaudirun.py
+    - root -l -b -q -e 'if (TClass::GetClass("DataObject") == nullptr) return 1; return 0;'
 
 about:
-  home: "https://gitlab.cern.ch/gaudi/Gaudi"
-  license: "Apache-2.0"
-  summary: "The Gaudi framework for event data processing applications"
+  home: https://gitlab.cern.ch/gaudi/Gaudi
+  doc_url: https://gaudi-framework.readthedocs.io/
+  license: Apache-2.0
+  license_file: LICENSE
+  summary: The Gaudi software framework for event data processing applications
+  description: |
+    Gaudi is the event-processing framework of LHCb and ATLAS: a component
+    model, an event data model, and the interfaces of tools, services and
+    algorithms.
 
 extra:
   recipe-maintainers:
