@@ -9,11 +9,16 @@ Feedstock for [gaudi](https://gitlab.cern.ch/gaudi/Gaudi) — part of [hep-forge
 Builds linux-amd64 + linux-arm64 in one matrix workflow and uploads to the
 [hep-forge](https://anaconda.org/hep-forge) Anaconda channel.
 
-The Gaudi framework for event data processing applications
+The Gaudi software framework for event data processing applications
 
 ## Architectures
 
-State per architecture: see the platforms badge above or [anaconda.org/hep-forge/gaudi](https://anaconda.org/hep-forge/gaudi).
+| Architecture | Latest published |
+|--------------|------------------|
+| linux-amd64 (`linux-64`) | ✅ `40.6` |
+| linux-arm64 (`linux-aarch64`) | ✅ `40.6` |
+
+_As of the last feedstock render; the badges above are live._
 
 
 ## Install
